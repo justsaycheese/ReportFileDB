@@ -23,6 +23,8 @@ python -m reportdb_cli delete-tag 財報 --cascade
 ```
 
 `add-report` 指令支援 `--content`、`--file` 或 `--stdin`（從標準輸入讀取）。
+若遇到非 UTF-8 編碼的檔案，可搭配 `--encoding` 指定如 `big5`、`cp950`
+等編碼，或直接交由程式自動偵測常見的中文編碼。
 
 3. 若想用圖形化介面，直接啟動 GUI：
 
@@ -38,11 +40,11 @@ GUI 介面提供左側標籤樹與右側報告清單，可直接新增 / 編輯 
 
 | 指令 | 說明 |
 | --- | --- |
-| `add-report` | 新增報告，支援一次設定多個標籤。 |
+| `add-report` | 新增報告，支援一次設定多個標籤，並可指定匯入編碼。 |
 | `add-tag` | 新增標籤，可指定父標籤建立子母樹。 |
 | `set-parent` | 調整既有標籤的父標籤。 |
 | `assign-tag` | 為既有報告補上標籤。 |
-| `edit-report` | 編輯報告，支援更新標題、內容與標籤。 |
+| `edit-report` | 編輯報告，支援更新標題、內容、標籤與匯入編碼。 |
 | `delete-report` | 依 ID 刪除報告。 |
 | `delete-tag` | 刪除標籤，可搭配 `--cascade` 一併移除所有子標籤。 |
 

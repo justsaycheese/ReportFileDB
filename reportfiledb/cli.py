@@ -71,6 +71,10 @@ def create_parser() -> argparse.ArgumentParser:
         "--stdin", action="store_true", help="從標準輸入讀取內容"
     )
     add_report.add_argument(
+        "--encoding",
+        help="讀取 --file 內容時使用的編碼 (預設：UTF-8，自動偵測常見編碼)",
+    )
+    add_report.add_argument(
         "--source",
         type=Path,
         help="記錄內容來源檔案（預設為 --file 指定的路徑）",
@@ -93,6 +97,10 @@ def create_parser() -> argparse.ArgumentParser:
     )
     edit_content_group.add_argument(
         "--stdin", action="store_true", help="從標準輸入讀取新的內容"
+    )
+    edit_report.add_argument(
+        "--encoding",
+        help="讀取 --file 內容時使用的編碼 (預設：UTF-8，自動偵測常見編碼)",
     )
     edit_report.add_argument(
         "--tag",
@@ -171,7 +179,9 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 def _read_content_and_source(
-    args: argparse.Namespace, *, optional: bool = False
+    args: argparse.Namespace,
+    *,
+    optional: bool = False,
 ) -> Tuple[Optional[str], Optional[str], bool]:
     """Read report content and detect whether a source path is available."""
 
@@ -179,7 +189,10 @@ def _read_content_and_source(
         return args.content, None, False
     if args.file is not None:
         try:
-            text = read_text_with_fallback(args.file)
+            text = read_text_with_fallback(
+                args.file, encoding=args.encoding or "utf-8"
+            )
+
         except OSError as exc:
             raise SystemExit(f"無法讀取檔案: {exc}") from exc
         return text, str(args.file), True
