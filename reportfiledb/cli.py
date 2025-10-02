@@ -5,7 +5,7 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Tuple
 
 from .database import ReportDatabase
 
@@ -70,6 +70,11 @@ def create_parser() -> argparse.ArgumentParser:
         "--stdin", action="store_true", help="從標準輸入讀取內容"
     )
     add_report.add_argument(
+        "--source",
+        type=Path,
+        help="記錄內容來源檔案（預設為 --file 指定的路徑）",
+    )
+    add_report.add_argument(
         "--tag",
         action="append",
         dest="tags",
@@ -98,6 +103,16 @@ def create_parser() -> argparse.ArgumentParser:
         "--clear-tags",
         action="store_true",
         help="移除所有標籤",
+    )
+    edit_report.add_argument(
+        "--source",
+        type=Path,
+        help="更新來源檔案路徑",
+    )
+    edit_report.add_argument(
+        "--clear-source",
+        action="store_true",
+        help="移除來源資訊",
     )
 
     # add-tag ----------------------------------------------------------------
@@ -154,23 +169,20 @@ def create_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _read_content_from_args(args: argparse.Namespace) -> str:
-    if args.content is not None:
-        return args.content
-    if args.file is not None:
-        return args.file.read_text(encoding="utf-8")
-    if getattr(args, "stdin", False):
-        return sys.stdin.read()
-    raise SystemExit("請使用 --content、--file 或 --stdin 提供報告內容")
+def _read_content_and_source(
+    args: argparse.Namespace, *, optional: bool = False
+) -> Tuple[Optional[str], Optional[str], bool]:
+    """Read report content and detect whether a source path is available."""
 
-def _read_optional_content(args: argparse.Namespace) -> Optional[str]:
     if args.content is not None:
-        return args.content
+        return args.content, None, False
     if args.file is not None:
-        return args.file.read_text(encoding="utf-8")
+        return args.file.read_text(encoding="utf-8"), str(args.file), True
     if getattr(args, "stdin", False):
-        return sys.stdin.read()
-    return None
+        return sys.stdin.read(), None, False
+    if optional:
+        return None, None, False
+    raise SystemExit("請使用 --content、--file 或 --stdin 提供報告內容")
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
     parser = create_parser()
@@ -179,8 +191,16 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     db = ReportDatabase(args.database)
 
     if args.command == "add-report":
-        content = _read_content_from_args(args)
-        report_id = db.add_report(args.title, content, tags=args.tags)
+        content, detected_source, has_source = _read_content_and_source(args)
+        source_path = str(args.source) if args.source is not None else None
+        if source_path is None and has_source:
+            source_path = detected_source
+        report_id = db.add_report(
+            args.title,
+            content,
+            source_path=source_path,
+            tags=args.tags,
+        )
         print(f"已新增報告 #{report_id}")
         return 0
 
@@ -205,19 +225,42 @@ def main(argv: Optional[Iterable[str]] = None) -> int:
     if args.command == "edit-report":
         if args.tags and args.clear_tags:
             parser.error("請勿同時使用 --tag 與 --clear-tags")
+        if args.source is not None and args.clear_source:
+            parser.error("請勿同時使用 --source 與 --clear-source")
 
-        content = _read_optional_content(args)
+        content, detected_source, has_source = _read_content_and_source(
+            args, optional=True
+        )
         tags: Optional[List[str]]
         if args.clear_tags:
             tags = []
         else:
             tags = args.tags
 
-        if args.title is None and content is None and tags is None:
+        set_source = False
+        source_path: Optional[str] = None
+        if args.source is not None:
+            source_path = str(args.source)
+            set_source = True
+        elif args.clear_source:
+            source_path = None
+            set_source = True
+        elif has_source:
+            source_path = detected_source
+            set_source = True
+
+        if args.title is None and content is None and tags is None and not set_source:
             parser.error("請至少指定要更新的標題、內容或標籤")
 
         try:
-            db.update_report(args.report_id, title=args.title, content=content, tags=tags)
+            db.update_report(
+                args.report_id,
+                title=args.title,
+                content=content,
+                tags=tags,
+                source_path=source_path,
+                set_source=set_source,
+            )
         except ValueError as exc:
             print(str(exc), file=sys.stderr)
             return 1

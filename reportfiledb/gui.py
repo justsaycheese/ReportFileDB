@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 import tkinter as tk
 from dataclasses import dataclass
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Dict, Optional, Sequence
 
 
@@ -17,6 +18,17 @@ from .database import Report, ReportDatabase, Tag
 class _TagNode:
     item_id: str
     tag: Optional[Tag]
+
+
+@dataclass
+class ReportDialogResult:
+    """Result payload returned from the report dialog."""
+
+    title: str
+    content: str
+    tags: list[str]
+    source_path: Optional[str]
+    set_source: bool
 
 
 class ReportApp:
@@ -259,15 +271,21 @@ class ReportApp:
 
     def _add_report(self) -> None:
         dialog = _ReportDialog(
-            self.root, available_tags=[tag.name for tag in self.db.list_tags()]
+            self.root,
+            available_tags=[tag.name for tag in self.db.list_tags()],
         )
         self.root.wait_window(dialog.window)
         if not dialog.result:
             return
 
-        title, content, tags = dialog.result
+        result = dialog.result
         try:
-            report_id = self.db.add_report(title, content, tags=tags)
+            report_id = self.db.add_report(
+                result.title,
+                result.content,
+                source_path=result.source_path,
+                tags=result.tags,
+            )
         except Exception as exc:  # pragma: no cover - GUI 錯誤顯示
             messagebox.showerror("新增報告失敗", str(exc), parent=self.root)
             return
@@ -323,16 +341,25 @@ class ReportApp:
             initial_title=report.title,
             initial_content=report.content,
             initial_tags=tags,
+            initial_source=report.source_path,
             available_tags=[tag.name for tag in self.db.list_tags()],
+            allow_clear_source=True,
         )
         self.root.wait_window(dialog.window)
         if not dialog.result:
             return
 
-        title, content, new_tags = dialog.result
+        result = dialog.result
 
         try:
-            self.db.update_report(report.id, title=title, content=content, tags=new_tags)
+            self.db.update_report(
+                report.id,
+                title=result.title,
+                content=result.content,
+                tags=result.tags,
+                source_path=result.source_path,
+                set_source=result.set_source,
+            )
         except Exception as exc:  # pragma: no cover - GUI 錯誤顯示
             messagebox.showerror("編輯報告失敗", str(exc), parent=self.root)
             return
@@ -375,7 +402,9 @@ class _ReportDialog:
         initial_title: str = "",
         initial_content: str = "",
         initial_tags: Optional[Sequence[str]] = None,
+        initial_source: Optional[str] = None,
         available_tags: Optional[Sequence[str]] = None,
+        allow_clear_source: bool = False,
     ):
         self.window = tk.Toplevel(parent)
         self.window.title(title)
@@ -394,10 +423,39 @@ class _ReportDialog:
         if initial_content:
             self.content_text.insert("1.0", initial_content)
 
-        ttk.Label(self.window, text="標籤").grid(row=2, column=0, sticky=tk.NW, padx=8, pady=4)
+        ttk.Label(self.window, text="來源").grid(row=2, column=0, sticky=tk.W, padx=8, pady=4)
+        source_row = ttk.Frame(self.window)
+        source_row.grid(row=2, column=1, sticky=tk.EW, padx=8, pady=4)
+        source_row.columnconfigure(0, weight=1)
+
+        self.initial_source = initial_source
+        self.source_var = tk.StringVar(value=initial_source or "")
+        self.source_entry = ttk.Entry(source_row, textvariable=self.source_var)
+        self.source_entry.grid(row=0, column=0, sticky=tk.EW)
+
+        self.load_file_button = ttk.Button(
+            source_row, text="從檔案載入…", command=self._on_load_file
+        )
+        self.load_file_button.grid(row=0, column=1, padx=(4, 0))
+
+        self.clear_source_var: Optional[tk.BooleanVar]
+        if allow_clear_source:
+            self.clear_source_var = tk.BooleanVar(value=False)
+            self.clear_source_check = ttk.Checkbutton(
+                source_row,
+                text="清除來源",
+                variable=self.clear_source_var,
+                command=self._on_clear_source_toggle,
+            )
+            self.clear_source_check.grid(row=1, column=0, columnspan=2, sticky=tk.W, pady=(4, 0))
+        else:
+            self.clear_source_var = None
+            self.clear_source_check = None
+
+        ttk.Label(self.window, text="標籤").grid(row=3, column=0, sticky=tk.NW, padx=8, pady=4)
 
         tags_container = ttk.Frame(self.window)
-        tags_container.grid(row=2, column=1, sticky=tk.NSEW, padx=8, pady=4)
+        tags_container.grid(row=3, column=1, sticky=tk.NSEW, padx=8, pady=4)
         tags_container.columnconfigure(0, weight=1)
 
         selector_row = ttk.Frame(tags_container)
@@ -444,7 +502,7 @@ class _ReportDialog:
             self._add_tag_value(tag)
 
         button_bar = ttk.Frame(self.window)
-        button_bar.grid(row=3, column=0, columnspan=2, sticky=tk.E, padx=8, pady=(4, 8))
+        button_bar.grid(row=4, column=0, columnspan=2, sticky=tk.E, padx=8, pady=(4, 8))
         ttk.Button(button_bar, text=submit_label, command=self._on_submit).pack(
             side=tk.RIGHT, padx=(0, 8)
         )
@@ -452,9 +510,10 @@ class _ReportDialog:
 
         self.window.columnconfigure(1, weight=1)
         self.window.rowconfigure(1, weight=1)
-        self.window.rowconfigure(2, weight=1)
+        self.window.rowconfigure(3, weight=1)
 
-        self.result: Optional[tuple[str, str, list[str]]] = None
+        self.result: Optional[ReportDialogResult] = None
+        self._update_source_state()
 
     def _on_submit(self) -> None:
         title = self.title_var.get().strip()
@@ -468,7 +527,23 @@ class _ReportDialog:
             return
 
         tags = list(self.selected_tags_listbox.get(0, tk.END))
-        self.result = (title, content, tags)
+
+        source_path = self.source_var.get().strip() or None
+        set_source = False
+        if self.clear_source_var is not None and self.clear_source_var.get():
+            set_source = True
+            source_path = None
+        else:
+            if (self.initial_source or None) != source_path:
+                set_source = bool(source_path) or self.initial_source is not None
+
+        self.result = ReportDialogResult(
+            title=title,
+            content=content,
+            tags=tags,
+            source_path=source_path,
+            set_source=set_source,
+        )
         self.window.destroy()
 
     def _on_add_tag(self) -> None:
@@ -540,6 +615,39 @@ class _ReportDialog:
     def _on_combobox_focus_out(self, _: tk.Event) -> None:
         # 離開時恢復全部選項，避免保留舊的過濾狀態。
         self._apply_tag_filter("")
+
+    # ------------------------------------------------------------------
+    # 來源處理
+
+    def _on_load_file(self) -> None:
+        filename = filedialog.askopenfilename(parent=self.window)
+        if not filename:
+            return
+        path = Path(filename)
+        try:
+            data = path.read_text(encoding="utf-8")
+        except Exception as exc:  # pragma: no cover - GUI 錯誤顯示
+            messagebox.showerror("讀取檔案失敗", str(exc), parent=self.window)
+            return
+
+        self.content_text.delete("1.0", tk.END)
+        self.content_text.insert("1.0", data)
+        self.source_var.set(str(path))
+
+        if self.clear_source_var is not None:
+            self.clear_source_var.set(False)
+        self._update_source_state()
+
+    def _on_clear_source_toggle(self) -> None:
+        self._update_source_state()
+
+    def _update_source_state(self) -> None:
+        clearing = bool(self.clear_source_var.get()) if self.clear_source_var else False
+        state = tk.NORMAL if not clearing else tk.DISABLED
+        self.source_entry.configure(state=state)
+        self.load_file_button.configure(state=tk.NORMAL if not clearing else tk.DISABLED)
+        if clearing:
+            self.source_var.set("")
 
 
 def launch(database: str = "reportdb.sqlite3") -> None:

@@ -228,10 +228,17 @@ class ReportDatabase:
         title: Optional[str] = None,
         content: Optional[str] = None,
         tags: Optional[Sequence[str]] = None,
+        source_path: Optional[Path | str] = None,
+        set_source: bool = False,
     ) -> None:
         """Update basic information or tags of an existing report."""
 
-        if title is None and content is None and tags is None:
+        if (
+            title is None
+            and content is None
+            and tags is None
+            and not set_source
+        ):
             return
 
         # 確認報告存在，避免多餘建立標籤
@@ -247,6 +254,10 @@ class ReportDatabase:
             if content is not None:
                 fields.append("content = ?")
                 params.append(content)
+            if set_source:
+                source_value = str(source_path) if source_path is not None else None
+                fields.append("source_path = ?")
+                params.append(source_value)
 
             if fields:
                 params.append(report_id)
