@@ -294,6 +294,7 @@ class ReportDatabase:
                 tuple(tag_ids),
             )
 
+
     def get_report(self, report_id: int) -> Report:
         with self._connect() as conn:
             cursor = conn.execute("SELECT * FROM reports WHERE id = ?", (report_id,))

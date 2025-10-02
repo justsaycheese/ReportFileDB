@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from tkinter import messagebox, simpledialog, ttk
 from typing import Dict, Optional, Sequence
 
+
+
 from .database import Report, ReportDatabase, Tag
 
 
@@ -56,8 +58,8 @@ class ReportApp:
         tag_buttons.pack(fill=tk.X, padx=8, pady=(0, 8))
 
         ttk.Button(tag_buttons, text="新增標籤", command=self._add_tag).pack(side=tk.LEFT)
+        codex/add-tag-based-retrieval-system-for-reports-ljyr5q
         ttk.Button(tag_buttons, text="刪除標籤", command=self._delete_tag).pack(side=tk.LEFT, padx=(8, 0))
-        ttk.Button(tag_buttons, text="重新整理", command=self._populate_tags).pack(side=tk.LEFT, padx=(8, 0))
 
         # 右側：報告與內容
         right_frame = ttk.Frame(paned)
@@ -75,8 +77,11 @@ class ReportApp:
         button_bar.pack(fill=tk.X, padx=8, pady=(0, 8))
 
         ttk.Button(button_bar, text="新增報告", command=self._add_report).pack(side=tk.LEFT)
+        codex/add-tag-based-retrieval-system-for-reports-ljyr5q
         ttk.Button(button_bar, text="編輯報告", command=self._edit_report).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Button(button_bar, text="刪除報告", command=self._delete_report).pack(side=tk.LEFT, padx=(8, 0))
+
+
         ttk.Button(button_bar, text="匯出報告", command=self._export_report).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Button(button_bar, text="重新整理", command=self._refresh_data).pack(side=tk.LEFT, padx=(8, 0))
 
@@ -143,6 +148,7 @@ class ReportApp:
         self._load_reports(tag)
 
     def _on_report_selected(self, _: Optional[tk.Event] = None) -> None:
+
         selection = self.report_list.curselection()
         if not selection:
             return
@@ -169,7 +175,9 @@ class ReportApp:
 
     # ------------------------------------------------------------------
     # 動作
+
     def _refresh_data(self, selected_report_id: Optional[int] = None) -> None:
+
         selection = self.tag_tree.selection()
         tag = None
         if selection:
@@ -331,6 +339,7 @@ class ReportApp:
         self._refresh_data(selected_report_id=report.id)
         messagebox.showinfo("完成", f"報告 #{report.id} 已更新", parent=self.root)
 
+
     def _export_report(self) -> None:
         selection = self.report_list.curselection()
         if not selection:
@@ -373,7 +382,7 @@ class _ReportDialog:
 
         ttk.Label(self.window, text="標題").grid(row=0, column=0, sticky=tk.W, padx=8, pady=(8, 4))
         self.title_var = tk.StringVar(value=initial_title)
-        ttk.Entry(self.window, textvariable=self.title_var).grid(
+
             row=0, column=1, sticky=tk.EW, padx=8, pady=(8, 4)
         )
 
@@ -383,21 +392,23 @@ class _ReportDialog:
         if initial_content:
             self.content_text.insert("1.0", initial_content)
 
+
         ttk.Label(self.window, text="標籤 (以逗號分隔)").grid(
             row=2, column=0, sticky=tk.W, padx=8, pady=4
         )
         initial_tags_text = ", ".join(initial_tags) if initial_tags else ""
         self.tags_var = tk.StringVar(value=initial_tags_text)
+
         ttk.Entry(self.window, textvariable=self.tags_var).grid(
             row=2, column=1, sticky=tk.EW, padx=8, pady=4
         )
 
         button_bar = ttk.Frame(self.window)
         button_bar.grid(row=3, column=0, columnspan=2, sticky=tk.E, padx=8, pady=(4, 8))
-        ttk.Button(button_bar, text="取消", command=self.window.destroy).pack(side=tk.RIGHT)
         ttk.Button(button_bar, text=submit_label, command=self._on_submit).pack(
             side=tk.RIGHT, padx=(0, 8)
         )
+
 
         self.window.columnconfigure(1, weight=1)
         self.window.rowconfigure(1, weight=1)

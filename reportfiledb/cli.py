@@ -163,7 +163,6 @@ def _read_content_from_args(args: argparse.Namespace) -> str:
         return sys.stdin.read()
     raise SystemExit("請使用 --content、--file 或 --stdin 提供報告內容")
 
-
 def _read_optional_content(args: argparse.Namespace) -> Optional[str]:
     if args.content is not None:
         return args.content
@@ -172,7 +171,6 @@ def _read_optional_content(args: argparse.Namespace) -> Optional[str]:
     if getattr(args, "stdin", False):
         return sys.stdin.read()
     return None
-
 
 def main(argv: Optional[Iterable[str]] = None) -> int:
     parser = create_parser()
