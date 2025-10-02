@@ -192,6 +192,7 @@ def _read_content_and_source(
             text = read_text_with_fallback(
                 args.file, encoding=args.encoding or "utf-8"
             )
+
         except OSError as exc:
             raise SystemExit(f"無法讀取檔案: {exc}") from exc
         return text, str(args.file), True
