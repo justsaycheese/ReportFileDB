@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 from .database import ReportDatabase
+from .utils import read_text_with_fallback
 
 
 def _print_report(report_db: ReportDatabase, report_id: int, *, show_content: bool) -> None:
@@ -177,7 +178,11 @@ def _read_content_and_source(
     if args.content is not None:
         return args.content, None, False
     if args.file is not None:
-        return args.file.read_text(encoding="utf-8"), str(args.file), True
+        try:
+            text = read_text_with_fallback(args.file)
+        except OSError as exc:
+            raise SystemExit(f"無法讀取檔案: {exc}") from exc
+        return text, str(args.file), True
     if getattr(args, "stdin", False):
         return sys.stdin.read(), None, False
     if optional:
