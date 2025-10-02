@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Dict, Iterable, Iterator, List, Optional, Sequence, Set
 import sqlite3
 
+from .utils import read_text_with_fallback
+
 
 @dataclass(frozen=True)
 class Report:
@@ -127,7 +129,7 @@ class ReportDatabase:
         if content is None:
             if source_path is None:
                 raise ValueError("Either content or source_path must be provided")
-            data = Path(source_path).read_text(encoding="utf-8")
+            data = read_text_with_fallback(Path(source_path))
         else:
             data = content
 

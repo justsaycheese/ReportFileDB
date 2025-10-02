@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable, List, Optional, Tuple
 
 from .database import ReportDatabase
+from .utils import read_text_with_fallback
 
 
 def _print_report(report_db: ReportDatabase, report_id: int, *, show_content: bool) -> None:
@@ -70,6 +71,10 @@ def create_parser() -> argparse.ArgumentParser:
         "--stdin", action="store_true", help="從標準輸入讀取內容"
     )
     add_report.add_argument(
+        "--encoding",
+        help="讀取 --file 內容時使用的編碼 (預設：UTF-8，自動偵測常見編碼)",
+    )
+    add_report.add_argument(
         "--source",
         type=Path,
         help="記錄內容來源檔案（預設為 --file 指定的路徑）",
@@ -92,6 +97,10 @@ def create_parser() -> argparse.ArgumentParser:
     )
     edit_content_group.add_argument(
         "--stdin", action="store_true", help="從標準輸入讀取新的內容"
+    )
+    edit_report.add_argument(
+        "--encoding",
+        help="讀取 --file 內容時使用的編碼 (預設：UTF-8，自動偵測常見編碼)",
     )
     edit_report.add_argument(
         "--tag",
@@ -170,14 +179,22 @@ def create_parser() -> argparse.ArgumentParser:
 
 
 def _read_content_and_source(
-    args: argparse.Namespace, *, optional: bool = False
+    args: argparse.Namespace,
+    *,
+    optional: bool = False,
 ) -> Tuple[Optional[str], Optional[str], bool]:
     """Read report content and detect whether a source path is available."""
 
     if args.content is not None:
         return args.content, None, False
     if args.file is not None:
-        return args.file.read_text(encoding="utf-8"), str(args.file), True
+        try:
+            text = read_text_with_fallback(
+                args.file, encoding=args.encoding or "utf-8"
+            )
+        except OSError as exc:
+            raise SystemExit(f"無法讀取檔案: {exc}") from exc
+        return text, str(args.file), True
     if getattr(args, "stdin", False):
         return sys.stdin.read(), None, False
     if optional:
