@@ -201,6 +201,100 @@ class ReportDatabase:
                     (report_id, tag_id),
                 )
 
+    def delete_report(self, report_id: int) -> None:
+        """Remove a report and all tag relations."""
+
+        with self._connect() as conn:
+            cursor = conn.execute("SELECT 1 FROM reports WHERE id = ?", (report_id,))
+            if cursor.fetchone() is None:
+                raise ValueError(f"Report {report_id} does not exist")
+
+            conn.execute("DELETE FROM report_tags WHERE report_id = ?", (report_id,))
+            conn.execute("DELETE FROM reports WHERE id = ?", (report_id,))
+
+    def update_report(
+        self,
+        report_id: int,
+        *,
+        title: Optional[str] = None,
+        content: Optional[str] = None,
+        tags: Optional[Sequence[str]] = None,
+    ) -> None:
+        """Update basic information or tags of an existing report."""
+
+        if title is None and content is None and tags is None:
+            return
+
+        # 確認報告存在，避免多餘建立標籤
+        self.get_report(report_id)
+
+        tag_ids: Optional[List[int]] = None
+        if tags is not None:
+            tag_ids = [self.ensure_tag(tag_name) for tag_name in tags]
+
+        with self._connect() as conn:
+            fields: List[str] = []
+            params: List[object] = []
+
+            if title is not None:
+                fields.append("title = ?")
+                params.append(title)
+            if content is not None:
+                fields.append("content = ?")
+                params.append(content)
+
+            if fields:
+                params.append(report_id)
+                conn.execute(
+                    f"UPDATE reports SET {', '.join(fields)} WHERE id = ?",
+                    tuple(params),
+                )
+
+            if tag_ids is not None:
+                conn.execute("DELETE FROM report_tags WHERE report_id = ?", (report_id,))
+                for tag_id in tag_ids:
+                    conn.execute(
+                        "INSERT OR IGNORE INTO report_tags (report_id, tag_id) VALUES (?, ?)",
+                        (report_id, tag_id),
+                    )
+
+    def delete_tag(self, name: str, *, cascade: bool = False) -> None:
+        """Delete a tag. 若 ``cascade`` 為 True，會一併刪除所有子標籤。"""
+
+        with self._connect() as conn:
+            cursor = conn.execute("SELECT id FROM tags WHERE name = ?", (name,))
+            row = cursor.fetchone()
+            if row is None:
+                raise ValueError(f"Tag '{name}' does not exist")
+
+            tag_id = int(row["id"])
+
+            if cascade:
+                tag_ids = sorted(self._resolve_tag_and_children(conn, name))
+            else:
+                child_cursor = conn.execute(
+                    "SELECT 1 FROM tags WHERE parent_id = ?", (tag_id,)
+                )
+                if child_cursor.fetchone() is not None:
+                    raise ValueError(
+                        f"Tag '{name}' still has child tags. 使用 --cascade 以一併刪除。"
+                    )
+                tag_ids = [tag_id]
+
+            if not tag_ids:
+                return
+
+            placeholders = ",".join("?" * len(tag_ids))
+            conn.execute(
+                f"DELETE FROM report_tags WHERE tag_id IN ({placeholders})",
+                tuple(tag_ids),
+            )
+            conn.execute(
+                f"DELETE FROM tags WHERE id IN ({placeholders})",
+                tuple(tag_ids),
+            )
+
+
     def get_report(self, report_id: int) -> Report:
         with self._connect() as conn:
             cursor = conn.execute("SELECT * FROM reports WHERE id = ?", (report_id,))
