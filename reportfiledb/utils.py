@@ -67,19 +67,7 @@ def read_text_with_fallback(
 
     會優先使用 ``encoding``，若失敗則依序測試 ``candidates`` 與常見的
     Unicode / 中文編碼（例如 Big5 / CP950、GB18030）。全部失敗時，
-    最後會以 ``errors="replace"`` 回傳，避免拋出例外。"""
-
-from pathlib import Path
-
-
-def read_text_with_fallback(path: Path, *, encoding: str = "utf-8") -> str:
-    """以 UTF-8 讀取 ``path``，必要時以替代策略避免解碼失敗。
-
-    由於部分匯入的報告檔案可能含有非標準的位元組序列或雜訊，
-    直接以 :func:`Path.read_text` 讀取時會觸發 ``UnicodeDecodeError``。
-    此函式先嘗試以標準 UTF-8 解碼，若失敗則回退為逐位元組
-    讀取並以 ``errors="replace"`` 方式解碼，確保能得到字串內容，
-    同時保留問題位元組的資訊（以 � 代表）。
+    最後會以 ``errors="replace"`` 回傳，避免拋出例外。
     """
 
     try:

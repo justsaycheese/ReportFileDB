@@ -624,13 +624,11 @@ class _ReportDialog:
             return
         path = Path(filename)
         try:
-            data = read_text_with_fallback(path)
+            read_text_with_fallback(path)
         except Exception as exc:  # pragma: no cover - GUI 錯誤顯示
             messagebox.showerror("讀取檔案失敗", str(exc), parent=self.window)
             return
 
-        self.content_text.delete("1.0", tk.END)
-        self.content_text.insert("1.0", data)
         self.source_var.set(str(path))
 
         if self.clear_source_var is not None:
