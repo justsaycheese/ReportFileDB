@@ -404,7 +404,10 @@ class _ReportDialog:
         selector_row.grid(row=0, column=0, sticky=tk.EW)
         selector_row.columnconfigure(0, weight=1)
 
-        self._available_tags = sorted(set(available_tags or []))
+        self._all_tags = sorted(
+            {tag.strip() for tag in (available_tags or []) if tag}, key=str.casefold
+        )
+        self._available_tags = list(self._all_tags)
         self.tag_var = tk.StringVar()
         self.tag_combobox = ttk.Combobox(
             selector_row,
@@ -412,6 +415,12 @@ class _ReportDialog:
             values=self._available_tags,
         )
         self.tag_combobox.grid(row=0, column=0, sticky=tk.EW)
+
+        self.tag_combobox.bind("<<ComboboxSelected>>", self._on_combobox_selected)
+        self.tag_combobox.bind("<Return>", self._on_combobox_return)
+        self.tag_combobox.bind("<KeyRelease>", self._on_combobox_keyrelease)
+        self.tag_combobox.bind("<FocusIn>", self._on_combobox_focus)
+        self.tag_combobox.bind("<FocusOut>", self._on_combobox_focus_out)
 
         ttk.Button(selector_row, text="加入", command=self._on_add_tag).grid(
             row=0, column=1, padx=(4, 0)
@@ -473,11 +482,11 @@ class _ReportDialog:
             return
 
         self._add_tag_value(value)
-        if value not in self._available_tags:
-            self._available_tags.append(value)
-            self._available_tags.sort()
-            self.tag_combobox.configure(values=self._available_tags)
+        if value not in self._all_tags:
+            self._all_tags.append(value)
+            self._all_tags.sort(key=str.casefold)
         self.tag_var.set("")
+        self._apply_tag_filter(self.tag_var.get())
 
     def _add_tag_value(self, value: str) -> None:
         value = value.strip()
@@ -498,6 +507,39 @@ class _ReportDialog:
         value = self.selected_tags_listbox.get(index)
         self.selected_tags_listbox.delete(index)
         self._selected_tags.discard(value)
+
+    # ------------------------------------------------------------------
+    # 標籤下拉選單優化
+
+    def _apply_tag_filter(self, query: str) -> None:
+        query = query.strip().lower()
+        if not query:
+            filtered = list(self._all_tags)
+        else:
+            filtered = [tag for tag in self._all_tags if query in tag.lower()]
+        self._available_tags = filtered
+        self.tag_combobox.configure(values=self._available_tags)
+
+    def _on_combobox_selected(self, _: tk.Event) -> None:
+        # 選單選取後直接加入標籤，減少操作步驟。
+        self._on_add_tag()
+
+    def _on_combobox_return(self, event: tk.Event) -> None:
+        self._on_add_tag()
+        return "break"
+
+    def _on_combobox_keyrelease(self, event: tk.Event) -> None:
+        if event.keysym in {"Return", "Escape", "Tab", "Up", "Down", "Left", "Right"}:
+            return
+        self._apply_tag_filter(self.tag_var.get())
+
+    def _on_combobox_focus(self, _: tk.Event) -> None:
+        # 聚焦時重新顯示完整清單，方便瀏覽。
+        self._apply_tag_filter(self.tag_var.get())
+
+    def _on_combobox_focus_out(self, _: tk.Event) -> None:
+        # 離開時恢復全部選項，避免保留舊的過濾狀態。
+        self._apply_tag_filter("")
 
 
 def launch(database: str = "reportdb.sqlite3") -> None:
