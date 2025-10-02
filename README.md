@@ -9,7 +9,6 @@ ReportFileDB 是一個簡易的 SQLite 工具，協助你把常用的報告全�
 - ✅ 可建立任意深度的標籤父子關係，搜尋父標籤時自動包含所有子孫標籤。
 
 - ✅ 以 CLI 或 GUI 操作：新增 / 編輯 / 刪除報告、維護 / 刪除標籤、依標籤搜尋、匯出報告。
-=======
 
 
 ## 安裝與使用
@@ -18,13 +17,9 @@ ReportFileDB 是一個簡易的 SQLite 工具，協助你把常用的報告全�
 2. 使用 CLI：
 
 ```bash
-
- codex/add-tag-based-retrieval-system-for-reports-ljyr5q
 python -m reportdb_cli edit-report 1 --title "四月財報總結" --tag 財報 --tag "財報/收入"
 python -m reportdb_cli delete-report 1
 python -m reportdb_cli delete-tag 財報 --cascade
-=======
-
 ```
 
 `add-report` 指令支援 `--content`、`--file` 或 `--stdin`（從標準輸入讀取）。
@@ -37,7 +32,6 @@ python -m reportdb_gui
 
 
 GUI 介面提供左側標籤樹與右側報告清單，可直接新增 / 編輯 / 刪除報告、建立 / 刪除標籤並匯出內容。
-=======
 
 
 ## 指令列表
@@ -51,7 +45,6 @@ GUI 介面提供左側標籤樹與右側報告清單，可直接新增 / 編輯 
 | `edit-report` | 編輯報告，支援更新標題、內容與標籤。 |
 | `delete-report` | 依 ID 刪除報告。 |
 | `delete-tag` | 刪除標籤，可搭配 `--cascade` 一併移除所有子標籤。 |
-=======
 
 
 

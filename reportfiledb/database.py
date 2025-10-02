@@ -143,7 +143,7 @@ class ReportDatabase:
 
             if tags:
                 for tag_name in tags:
-                    tag_id = self.ensure_tag(tag_name)
+                    tag_id = self._ensure_tag_id(conn, tag_name)
                     conn.execute(
                         "INSERT OR IGNORE INTO report_tags (report_id, tag_id) VALUES (?, ?)",
                         (report_id, tag_id),
@@ -151,29 +151,38 @@ class ReportDatabase:
 
         return report_id
 
+    def _ensure_tag_id(
+        self,
+        conn: sqlite3.Connection,
+        name: str,
+        *,
+        parent: Optional[str] = None,
+    ) -> int:
+        parent_id: Optional[int] = None
+        if parent is not None:
+            parent_id = self._ensure_tag_id(conn, parent)
+
+        cursor = conn.execute("SELECT id, parent_id FROM tags WHERE name = ?", (name,))
+        row = cursor.fetchone()
+        if row:
+            tag_id = int(row["id"])
+            if parent_id is not None and row["parent_id"] != parent_id:
+                conn.execute(
+                    "UPDATE tags SET parent_id = ? WHERE id = ?",
+                    (parent_id, tag_id),
+                )
+            return tag_id
+
+        cursor = conn.execute(
+            "INSERT INTO tags (name, parent_id) VALUES (?, ?)", (name, parent_id)
+        )
+        return int(cursor.lastrowid)
+
     def ensure_tag(self, name: str, *, parent: Optional[str] = None) -> int:
         """Return the identifier of ``name`` creating it (and parent) if missing."""
 
         with self._connect() as conn:
-            parent_id: Optional[int] = None
-            if parent is not None:
-                parent_id = self.ensure_tag(parent)
-
-            cursor = conn.execute("SELECT id FROM tags WHERE name = ?", (name,))
-            row = cursor.fetchone()
-            if row:
-                tag_id = int(row["id"])
-                if parent_id is not None:
-                    conn.execute(
-                        "UPDATE tags SET parent_id = ? WHERE id = ?",
-                        (parent_id, tag_id),
-                    )
-                return tag_id
-
-            cursor = conn.execute(
-                "INSERT INTO tags (name, parent_id) VALUES (?, ?)", (name, parent_id)
-            )
-            return int(cursor.lastrowid)
+            return self._ensure_tag_id(conn, name, parent=parent)
 
     def set_tag_parent(self, name: str, parent: Optional[str]) -> None:
         """Explicitly set the parent of ``name`` to ``parent`` (creating parent if needed)."""
@@ -186,7 +195,7 @@ class ReportDatabase:
 
             parent_id = None
             if parent is not None:
-                parent_id = self.ensure_tag(parent)
+                parent_id = self._ensure_tag_id(conn, parent)
 
             conn.execute("UPDATE tags SET parent_id = ? WHERE id = ?", (parent_id, row["id"]))
 
@@ -195,7 +204,7 @@ class ReportDatabase:
 
         with self._connect() as conn:
             for name in tag_names:
-                tag_id = self.ensure_tag(name)
+                tag_id = self._ensure_tag_id(conn, name)
                 conn.execute(
                     "INSERT OR IGNORE INTO report_tags (report_id, tag_id) VALUES (?, ?)",
                     (report_id, tag_id),
@@ -228,10 +237,6 @@ class ReportDatabase:
         # 確認報告存在，避免多餘建立標籤
         self.get_report(report_id)
 
-        tag_ids: Optional[List[int]] = None
-        if tags is not None:
-            tag_ids = [self.ensure_tag(tag_name) for tag_name in tags]
-
         with self._connect() as conn:
             fields: List[str] = []
             params: List[object] = []
@@ -250,9 +255,10 @@ class ReportDatabase:
                     tuple(params),
                 )
 
-            if tag_ids is not None:
+            if tags is not None:
                 conn.execute("DELETE FROM report_tags WHERE report_id = ?", (report_id,))
-                for tag_id in tag_ids:
+                for tag_name in tags:
+                    tag_id = self._ensure_tag_id(conn, tag_name)
                     conn.execute(
                         "INSERT OR IGNORE INTO report_tags (report_id, tag_id) VALUES (?, ?)",
                         (report_id, tag_id),
