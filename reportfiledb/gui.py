@@ -258,7 +258,9 @@ class ReportApp:
         messagebox.showinfo("完成", f"標籤 '{tag.name}' 已刪除", parent=self.root)
 
     def _add_report(self) -> None:
-        dialog = _ReportDialog(self.root)
+        dialog = _ReportDialog(
+            self.root, available_tags=[tag.name for tag in self.db.list_tags()]
+        )
         self.root.wait_window(dialog.window)
         if not dialog.result:
             return
@@ -321,6 +323,7 @@ class ReportApp:
             initial_title=report.title,
             initial_content=report.content,
             initial_tags=tags,
+            available_tags=[tag.name for tag in self.db.list_tags()],
         )
         self.root.wait_window(dialog.window)
         if not dialog.result:
@@ -372,6 +375,7 @@ class _ReportDialog:
         initial_title: str = "",
         initial_content: str = "",
         initial_tags: Optional[Sequence[str]] = None,
+        available_tags: Optional[Sequence[str]] = None,
     ):
         self.window = tk.Toplevel(parent)
         self.window.title(title)
@@ -390,16 +394,45 @@ class _ReportDialog:
         if initial_content:
             self.content_text.insert("1.0", initial_content)
 
+        ttk.Label(self.window, text="標籤").grid(row=2, column=0, sticky=tk.NW, padx=8, pady=4)
 
-        ttk.Label(self.window, text="標籤 (以逗號分隔)").grid(
-            row=2, column=0, sticky=tk.W, padx=8, pady=4
-        )
-        initial_tags_text = ", ".join(initial_tags) if initial_tags else ""
-        self.tags_var = tk.StringVar(value=initial_tags_text)
+        tags_container = ttk.Frame(self.window)
+        tags_container.grid(row=2, column=1, sticky=tk.NSEW, padx=8, pady=4)
+        tags_container.columnconfigure(0, weight=1)
 
-        ttk.Entry(self.window, textvariable=self.tags_var).grid(
-            row=2, column=1, sticky=tk.EW, padx=8, pady=4
+        selector_row = ttk.Frame(tags_container)
+        selector_row.grid(row=0, column=0, sticky=tk.EW)
+        selector_row.columnconfigure(0, weight=1)
+
+        self._available_tags = sorted(set(available_tags or []))
+        self.tag_var = tk.StringVar()
+        self.tag_combobox = ttk.Combobox(
+            selector_row,
+            textvariable=self.tag_var,
+            values=self._available_tags,
         )
+        self.tag_combobox.grid(row=0, column=0, sticky=tk.EW)
+
+        ttk.Button(selector_row, text="加入", command=self._on_add_tag).grid(
+            row=0, column=1, padx=(4, 0)
+        )
+
+        self.selected_tags_listbox = tk.Listbox(
+            tags_container,
+            height=6,
+            exportselection=False,
+        )
+        self.selected_tags_listbox.grid(row=1, column=0, sticky=tk.NSEW, pady=(4, 0))
+
+        tags_container.rowconfigure(1, weight=1)
+
+        ttk.Button(tags_container, text="移除選取", command=self._on_remove_tag).grid(
+            row=2, column=0, sticky=tk.E, pady=(4, 0)
+        )
+
+        self._selected_tags: set[str] = set()
+        for tag in initial_tags or []:
+            self._add_tag_value(tag)
 
         button_bar = ttk.Frame(self.window)
         button_bar.grid(row=3, column=0, columnspan=2, sticky=tk.E, padx=8, pady=(4, 8))
@@ -410,13 +443,13 @@ class _ReportDialog:
 
         self.window.columnconfigure(1, weight=1)
         self.window.rowconfigure(1, weight=1)
+        self.window.rowconfigure(2, weight=1)
 
         self.result: Optional[tuple[str, str, list[str]]] = None
 
     def _on_submit(self) -> None:
         title = self.title_var.get().strip()
         content = self.content_text.get("1.0", tk.END).strip()
-        tags_text = self.tags_var.get().strip()
 
         if not title:
             messagebox.showwarning("缺少標題", "請輸入報告標題。", parent=self.window)
@@ -425,9 +458,46 @@ class _ReportDialog:
             messagebox.showwarning("缺少內容", "請輸入報告內容。", parent=self.window)
             return
 
-        tags = [tag.strip() for tag in tags_text.split(",") if tag.strip()] if tags_text else []
+        tags = list(self.selected_tags_listbox.get(0, tk.END))
         self.result = (title, content, tags)
         self.window.destroy()
+
+    def _on_add_tag(self) -> None:
+        value = self.tag_var.get().strip()
+        if not value:
+            messagebox.showwarning("未輸入標籤", "請先選擇或輸入標籤名稱。", parent=self.window)
+            return
+
+        if value in self._selected_tags:
+            messagebox.showinfo("重複標籤", f"'{value}' 已在清單中。", parent=self.window)
+            return
+
+        self._add_tag_value(value)
+        if value not in self._available_tags:
+            self._available_tags.append(value)
+            self._available_tags.sort()
+            self.tag_combobox.configure(values=self._available_tags)
+        self.tag_var.set("")
+
+    def _add_tag_value(self, value: str) -> None:
+        value = value.strip()
+        if not value:
+            return
+        if value in self._selected_tags:
+            return
+        self._selected_tags.add(value)
+        self.selected_tags_listbox.insert(tk.END, value)
+
+    def _on_remove_tag(self) -> None:
+        selection = self.selected_tags_listbox.curselection()
+        if not selection:
+            messagebox.showwarning("未選擇標籤", "請先選擇要移除的標籤。", parent=self.window)
+            return
+
+        index = selection[0]
+        value = self.selected_tags_listbox.get(index)
+        self.selected_tags_listbox.delete(index)
+        self._selected_tags.discard(value)
 
 
 def launch(database: str = "reportdb.sqlite3") -> None:
