@@ -58,7 +58,6 @@ class ReportApp:
         tag_buttons.pack(fill=tk.X, padx=8, pady=(0, 8))
 
         ttk.Button(tag_buttons, text="新增標籤", command=self._add_tag).pack(side=tk.LEFT)
-        codex/add-tag-based-retrieval-system-for-reports-ljyr5q
         ttk.Button(tag_buttons, text="刪除標籤", command=self._delete_tag).pack(side=tk.LEFT, padx=(8, 0))
 
         # 右側：報告與內容
@@ -77,7 +76,6 @@ class ReportApp:
         button_bar.pack(fill=tk.X, padx=8, pady=(0, 8))
 
         ttk.Button(button_bar, text="新增報告", command=self._add_report).pack(side=tk.LEFT)
-        codex/add-tag-based-retrieval-system-for-reports-ljyr5q
         ttk.Button(button_bar, text="編輯報告", command=self._edit_report).pack(side=tk.LEFT, padx=(8, 0))
         ttk.Button(button_bar, text="刪除報告", command=self._delete_report).pack(side=tk.LEFT, padx=(8, 0))
 
@@ -382,7 +380,7 @@ class _ReportDialog:
 
         ttk.Label(self.window, text="標題").grid(row=0, column=0, sticky=tk.W, padx=8, pady=(8, 4))
         self.title_var = tk.StringVar(value=initial_title)
-
+        ttk.Entry(self.window, textvariable=self.title_var).grid(
             row=0, column=1, sticky=tk.EW, padx=8, pady=(8, 4)
         )
 
