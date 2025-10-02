@@ -9,9 +9,8 @@ from dataclasses import dataclass
 from tkinter import filedialog, messagebox, simpledialog, ttk
 from typing import Dict, Optional, Sequence
 
-
-
 from .database import Report, ReportDatabase, Tag
+from .utils import read_text_with_fallback
 
 
 @dataclass
@@ -625,7 +624,7 @@ class _ReportDialog:
             return
         path = Path(filename)
         try:
-            data = path.read_text(encoding="utf-8")
+            data = read_text_with_fallback(path)
         except Exception as exc:  # pragma: no cover - GUI 錯誤顯示
             messagebox.showerror("讀取檔案失敗", str(exc), parent=self.window)
             return
