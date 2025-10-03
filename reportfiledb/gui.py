@@ -78,6 +78,29 @@ class ReportApp:
         report_header = ttk.Label(right_frame, text="報告清單")
         report_header.pack(anchor=tk.W, padx=8, pady=(8, 4))
 
+        search_frame = ttk.Frame(right_frame)
+        search_frame.pack(fill=tk.X, padx=8, pady=(0, 8))
+
+        self.search_scope_var = tk.StringVar(value="全部")
+        scope_selector = ttk.Combobox(
+            search_frame,
+            textvariable=self.search_scope_var,
+            values=("全部", "標題", "內文", "來源"),
+            state="readonly",
+            width=6,
+        )
+        scope_selector.pack(side=tk.LEFT)
+        scope_selector.bind("<<ComboboxSelected>>", self._on_search)
+
+        self.search_var = tk.StringVar()
+        search_entry = ttk.Entry(search_frame, textvariable=self.search_var)
+        search_entry.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(8, 0))
+        search_entry.bind("<Return>", self._on_search)
+
+        ttk.Button(search_frame, text="搜尋", command=self._on_search).pack(
+            side=tk.LEFT, padx=(8, 0)
+        )
+
         self.report_list = tk.Listbox(right_frame, exportselection=False)
         self.report_list.pack(fill=tk.BOTH, expand=False, padx=8, pady=(0, 8))
         self.report_list.bind("<<ListboxSelect>>", self._on_report_selected)
@@ -135,6 +158,7 @@ class ReportApp:
         else:
             reports = self.db.search_reports([tag.name])
 
+        reports = self._filter_reports(reports)
         self._reports = reports
         self.report_list.delete(0, tk.END)
         for report in reports:
@@ -145,6 +169,31 @@ class ReportApp:
         self.detail_text.configure(state=tk.NORMAL)
         self.detail_text.delete("1.0", tk.END)
         self.detail_text.configure(state=tk.DISABLED)
+
+    def _filter_reports(self, reports: Sequence[Report]) -> list[Report]:
+        query = self.search_var.get().strip()
+        if not query:
+            return list(reports)
+
+        query_lower = query.lower()
+        scope = self.search_scope_var.get()
+
+        def matches(report: Report) -> bool:
+            def contains(value: Optional[str]) -> bool:
+                return value is not None and query_lower in value.lower()
+
+            if scope == "標題":
+                return contains(report.title)
+            if scope == "內文":
+                return contains(report.content)
+            if scope == "來源":
+                return contains(report.source_path or "")
+            return any(
+                contains(field)
+                for field in (report.title, report.content, report.source_path or "")
+            )
+
+        return [report for report in reports if matches(report)]
 
     # ------------------------------------------------------------------
     # 事件處理
@@ -181,6 +230,9 @@ class ReportApp:
         self.detail_text.delete("1.0", tk.END)
         self.detail_text.insert("1.0", "\n".join(detail_lines))
         self.detail_text.configure(state=tk.DISABLED)
+
+    def _on_search(self, _: Optional[tk.Event] = None) -> None:
+        self._refresh_data()
 
     # ------------------------------------------------------------------
     # 動作
